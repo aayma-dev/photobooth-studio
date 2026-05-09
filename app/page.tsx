@@ -1,64 +1,143 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-// Frame styles options
 const FRAME_STYLES = ['Classic', 'Vintage', 'Minimal', 'Film'];
 
 export default function Home() {
-  // Screen state: 'landing' or 'modeSelect'
-  const [screen, setScreen] = useState<'landing' | 'modeSelect'>('landing');
+  // Main screen state
+  const [currentScreen, setCurrentScreen] = useState<'landing' | 'modeSelect' | 'camera' | 'upload' | 'strip'>('landing');
   
-  // Mode selection state
+  // Frame selection
   const [selectedFrame, setSelectedFrame] = useState(0);
   
-  // Camera/Photo states
-  const [showCamera, setShowCamera] = useState(false);
+  // Photos state
   const [photos, setPhotos] = useState<string[]>([]);
+  
+  // Camera states
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [showStrip, setShowStrip] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const webcamRef = useRef<Webcam>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+  
+  // Upload states
+  const [uploadStep, setUploadStep] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Frame navigation
-  const nextFrame = () => {
-    setSelectedFrame((prev) => (prev + 1) % FRAME_STYLES.length);
-  };
+  const nextFrame = () => setSelectedFrame((prev) => (prev + 1) % FRAME_STYLES.length);
+  const prevFrame = () => setSelectedFrame((prev) => (prev - 1 + FRAME_STYLES.length) % FRAME_STYLES.length);
 
-  const prevFrame = () => {
-    setSelectedFrame((prev) => (prev - 1 + FRAME_STYLES.length) % FRAME_STYLES.length);
-  };
+  // Force camera re-initialization when screen becomes camera
+  useEffect(() => {
+    if (currentScreen === 'camera') {
+      setIsCameraReady(false);
+      setPhotos([]);
+      setCountdown(null);
+      setIsCapturing(false);
+      
+      // Small delay to ensure Webcam component mounts
+      const timer = setTimeout(() => {
+        setIsCameraReady(true);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentScreen]);
 
-  // Capture one photo
+  // Capture photo from webcam - Fixed with proper error handling
   const capturePhoto = () => {
-    if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (imageSrc) {
-        const newPhotos = [...photos, imageSrc];
-        setPhotos(newPhotos);
-        if (newPhotos.length === 4) {
-          setShowStrip(true);
+    if (webcamRef.current && isCameraReady) {
+      try {
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (imageSrc) {
+          const newPhotos = [...photos, imageSrc];
+          setPhotos(newPhotos);
+          if (newPhotos.length === 4) {
+            setCurrentScreen('strip');
+          }
+          return true;
+        } else {
+          console.error('Failed to capture: screenshot is null');
+          return false;
         }
+      } catch (err) {
+        console.error('Error capturing photo:', err);
+        return false;
       }
     }
+    console.error('Camera not ready yet');
+    return false;
   };
 
-  // Countdown before capture
+  // Countdown then capture
   const startCountdown = async () => {
+    setIsCapturing(true);
     for (let i = 3; i >= 1; i--) {
       setCountdown(i);
       await new Promise(r => setTimeout(r, 1000));
     }
     setCountdown(null);
-    capturePhoto();
+    
+    // Small delay to ensure countdown animation finishes
+    await new Promise(r => setTimeout(r, 100));
+    
+    const success = capturePhoto();
+    if (!success) {
+      alert('Camera error. Please make sure camera is accessible and try again.');
+    }
+    setIsCapturing(false);
   };
 
-  const handleCapture = async () => {
-    if (photos.length >= 4) return;
-    await startCountdown();
+  const handleCapture = () => {
+    if (photos.length >= 4) {
+      return;
+    }
+    if (!isCameraReady) {
+      alert('Camera is initializing. Please wait a moment.');
+      return;
+    }
+    if (!isCapturing) {
+      startCountdown();
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageSrc = e.target?.result as string;
+      const newPhotos = [...photos, imageSrc];
+      setPhotos(newPhotos);
+      setUploadStep(newPhotos.length);
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      if (newPhotos.length === 4) {
+        setCurrentScreen('strip');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const startUpload = () => {
+    setPhotos([]);
+    setUploadStep(0);
+    setCurrentScreen('upload');
+    setTimeout(() => fileInputRef.current?.click(), 100);
   };
 
   // Download functions
@@ -87,28 +166,24 @@ export default function Home() {
 
   const reset = () => {
     setPhotos([]);
-    setShowStrip(false);
-    setShowCamera(false);
+    setCurrentScreen('modeSelect');
+    setCountdown(null);
+    setIsCameraReady(false);
+    setIsCapturing(false);
   };
 
-  // Landing Page
-  if (screen === 'landing') {
+  // ========== LANDING SCREEN ==========
+  if (currentScreen === 'landing') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#faf6f0] px-4">
-        {/* Main Title */}
-        <h1 
-          className="text-5xl md:text-6xl font-light italic text-center text-[#3d2b1a] mb-12 tracking-wide"
-          style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
-        >
+        <h1 className="text-5xl md:text-6xl font-light italic text-center text-[#3d2b1a] mb-12 tracking-wide"
+            style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
           Photobooth Studio
         </h1>
-        
-        {/* Enter Button */}
         <button
-          onClick={() => setScreen('modeSelect')}
+          onClick={() => setCurrentScreen('modeSelect')}
           className="px-10 py-3 bg-[#3d2b1a] text-[#faf6f0] rounded-full
-                     hover:bg-[#5a3d2a] hover:scale-105 transition-all duration-300
-                     shadow-md text-lg tracking-wide"
+                     hover:bg-[#5a3d2a] hover:scale-105 transition-all duration-300 shadow-md text-lg"
         >
           ENTER
         </button>
@@ -116,62 +191,51 @@ export default function Home() {
     );
   }
 
-  // Mode Selection Page with Photo Strip
-  if (screen === 'modeSelect' && !showCamera && !showStrip) {
+  // ========== MODE SELECTION SCREEN ==========
+  if (currentScreen === 'modeSelect') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#faf6f0] px-4 py-8">
         
-        {/* Double-lined Box */}
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+        
         <div className="double-lined-box max-w-md w-full">
           <div className="double-lined-box-inner">
-            
-            {/* Vertical 4-Photo Strip Preview */}
-            <div className="space-y-3 mb-6">
+            <div className="space-y-2 mb-4">
               {[1, 2, 3, 4].map((num) => (
-                <div
-                  key={num}
-                  className="w-48 h-32 bg-gray-100 rounded-sm mx-auto flex items-center justify-center text-gray-400 text-sm border border-dashed border-gray-300"
-                >
-                  📷 Photo {num}
+                <div key={num} className="w-40 h-28 bg-gray-100 rounded-sm mx-auto flex items-center justify-center text-gray-400 text-sm border border-dashed border-gray-300">
+                  {photos.length >= num ? (
+                    <img src={photos[num-1]} alt={`Photo ${num}`} className="w-full h-full object-cover rounded-sm" />
+                  ) : (
+                    <div className="text-center"><div>📷</div><div>Photo {num}</div></div>
+                  )}
                 </div>
               ))}
             </div>
             
-            {/* Frame Selection Controls */}
-            <div className="flex items-center justify-center gap-4 mt-4">
-              <button
-                onClick={prevFrame}
-                className="w-10 h-10 rounded-full bg-[#3d2b1a] text-white flex items-center justify-center hover:bg-[#5a3d2a] transition"
-              >
-                ←
-              </button>
-              <span className="text-[#3d2b1a] font-medium min-w-[80px] text-center">
-                {FRAME_STYLES[selectedFrame]}
-              </span>
-              <button
-                onClick={nextFrame}
-                className="w-10 h-10 rounded-full bg-[#3d2b1a] text-white flex items-center justify-center hover:bg-[#5a3d2a] transition"
-              >
-                →
-              </button>
+            <div className="flex items-center justify-center gap-4 mt-2">
+              <button onClick={prevFrame} className="w-8 h-8 rounded-full bg-[#3d2b1a] text-white flex items-center justify-center hover:bg-[#5a3d2a] transition text-sm">←</button>
+              <span className="text-[#3d2b1a] font-medium min-w-[70px] text-center text-sm">{FRAME_STYLES[selectedFrame]}</span>
+              <button onClick={nextFrame} className="w-8 h-8 rounded-full bg-[#3d2b1a] text-white flex items-center justify-center hover:bg-[#5a3d2a] transition text-sm">→</button>
             </div>
           </div>
         </div>
         
-        {/* Two Buttons Below */}
-        <div className="flex flex-col sm:flex-row gap-4 mt-8">
+        <div className="flex flex-col sm:flex-row gap-4 mt-6">
           <button
-            onClick={() => setShowCamera(true)}
-            className="px-8 py-3 bg-[#3d2b1a] text-[#faf6f0] rounded-full
-                       hover:bg-[#5a3d2a] hover:scale-105 transition-all duration-300
-                       shadow-md min-w-[180px]"
+            onClick={() => {
+              setPhotos([]);
+              setCountdown(null);
+              setIsCameraReady(false);
+              setIsCapturing(false);
+              setCurrentScreen('camera');
+            }}
+            className="px-6 py-2 bg-[#3d2b1a] text-[#faf6f0] rounded-full hover:bg-[#5a3d2a] hover:scale-105 transition-all shadow-md min-w-[150px] text-sm"
           >
             USE CAMERA
           </button>
           <button
-            className="px-8 py-3 border-2 border-[#3d2b1a] text-[#3d2b1a] rounded-full
-                       hover:bg-[#3d2b1a] hover:text-[#faf6f0] transition-all duration-300
-                       min-w-[180px]"
+            onClick={startUpload}
+            className="px-6 py-2 border-2 border-[#3d2b1a] text-[#3d2b1a] rounded-full hover:bg-[#3d2b1a] hover:text-[#faf6f0] transition-all min-w-[150px] text-sm"
           >
             BROWSE PICTURES
           </button>
@@ -180,15 +244,14 @@ export default function Home() {
     );
   }
 
-  // Camera Page (taking 4 photos)
-  if (showCamera && !showStrip) {
+  // ========== CAMERA SCREEN ==========
+  if (currentScreen === 'camera') {
     return (
-      <div className="min-h-screen bg-[#faf6f0] flex flex-col items-center justify-center p-6">
-        {/* Camera Container */}
+      <div className="min-h-screen bg-[#faf6f0] flex flex-col items-center justify-center p-4">
         <div className="relative bg-black rounded-xl overflow-hidden shadow-xl">
           {countdown && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
-              <span className="text-8xl text-white font-bold countdown-number">{countdown}</span>
+              <span className="text-6xl text-white font-bold countdown-number">{countdown}</span>
             </div>
           )}
           <Webcam
@@ -196,43 +259,55 @@ export default function Home() {
             mirrored
             screenshotFormat="image/jpeg"
             className="w-80 rounded-xl"
+            videoConstraints={{ facingMode: "user" }}
+            onUserMedia={() => {
+              console.log('Camera ready');
+              setIsCameraReady(true);
+            }}
+            onUserMediaError={(err) => {
+              console.error('Camera error:', err);
+              alert('Could not access camera. Please check permissions.');
+            }}
           />
+          {!isCameraReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
+              <div className="text-white text-center">
+                <div className="animate-pulse">📷</div>
+                <p className="text-sm mt-2">Starting camera...</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Photo Slots */}
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-2 mt-4">
           {[1, 2, 3, 4].map((num) => (
-            <div
-              key={num}
-              className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-sm font-medium
-                ${photos.length >= num
-                  ? 'bg-green-500 border-green-400 text-white'
-                  : 'bg-white border-[#3d2b1a]/30 text-[#3d2b1a]/50'}`}
-            >
+            <div key={num} className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-sm font-medium
+              ${photos.length >= num ? 'bg-green-500 border-green-400 text-white' : 'bg-white border-[#3d2b1a]/30 text-[#3d2b1a]/50'}`}>
               {photos.length >= num ? '✓' : num}
             </div>
           ))}
         </div>
 
-        {/* Capture Button */}
         <button
           onClick={handleCapture}
-          disabled={photos.length >= 4}
-          className={`mt-6 px-8 py-3 rounded-full text-lg font-medium transition-all
-            ${photos.length >= 4
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          disabled={photos.length >= 4 || !isCameraReady || isCapturing}
+          className={`mt-4 px-6 py-2 rounded-full text-base font-medium transition-all
+            ${(photos.length >= 4 || !isCameraReady || isCapturing) 
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
               : 'bg-[#3d2b1a] text-[#faf6f0] hover:scale-105 hover:bg-[#5a3d2a] shadow-md'}`}
         >
-          {photos.length >= 4 ? 'Complete!' : 'Take Photo'}
+          {!isCameraReady ? 'Loading Camera...' : isCapturing ? 'Capturing...' : photos.length >= 4 ? 'Complete!' : 'Take Photo'}
         </button>
 
-        {/* Back Button */}
         <button
           onClick={() => {
-            setShowCamera(false);
             setPhotos([]);
+            setCountdown(null);
+            setIsCameraReady(false);
+            setIsCapturing(false);
+            setCurrentScreen('modeSelect');
           }}
-          className="mt-4 text-[#3d2b1a]/60 underline text-sm hover:text-[#3d2b1a] transition"
+          className="mt-3 text-[#3d2b1a]/60 underline text-xs hover:text-[#3d2b1a] transition"
         >
           ← Back
         </button>
@@ -240,44 +315,76 @@ export default function Home() {
     );
   }
 
-  // Photo Strip Result Page
-  if (showStrip && photos.length === 4) {
+  // ========== UPLOAD SCREEN ==========
+  if (currentScreen === 'upload') {
     return (
-      <div className="min-h-screen bg-[#faf6f0] flex flex-col items-center justify-center p-6">
-        {/* Photo Strip */}
-        <div ref={stripRef} className="bg-white p-6 shadow-xl">
-          <div className="space-y-4">
+      <div className="min-h-screen bg-[#faf6f0] flex flex-col items-center justify-center p-4">
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+        
+        <div className="flex gap-3 mt-6">
+          {[1, 2, 3, 4].map((num) => (
+            <div key={num} className={`w-16 h-16 rounded-lg border-2 flex items-center justify-center text-sm font-medium overflow-hidden
+              ${photos.length >= num ? 'border-green-500 bg-white' : 'bg-white border-[#3d2b1a]/30 text-[#3d2b1a]/50'}`}>
+              {photos.length >= num ? <img src={photos[num-1]} alt={`Photo ${num}`} className="w-full h-full object-cover" /> : num}
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-4 text-[#3d2b1a] text-center text-sm">
+          {uploadStep === 0 && "Click below to select Photo 1"}
+          {uploadStep === 1 && "Select Photo 2"}
+          {uploadStep === 2 && "Select Photo 3"}
+          {uploadStep === 3 && "Select Photo 4"}
+        </p>
+
+        {uploadStep < 4 && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-3 px-6 py-2 bg-[#3d2b1a] text-[#faf6f0] rounded-full text-sm hover:bg-[#5a3d2a] hover:scale-105 transition-all"
+          >
+            {uploadStep === 0 ? "Select Photo 1" : `Select Photo ${uploadStep + 1}`}
+          </button>
+        )}
+
+        <button
+          onClick={() => {
+            setPhotos([]);
+            setUploadStep(0);
+            setCurrentScreen('modeSelect');
+          }}
+          className="mt-3 text-[#3d2b1a]/60 underline text-xs hover:text-[#3d2b1a] transition"
+        >
+          ← Back to Mode Selection
+        </button>
+      </div>
+    );
+  }
+
+  // ========== STRIP SCREEN ==========
+  if (currentScreen === 'strip' && photos.length === 4) {
+    const frameStyles = {
+      0: 'border-4 border-[#3d2b1a]',
+      1: 'border-8 border-[#8B7355]',
+      2: 'border-2 border-gray-400',
+      3: 'border-4 border-black',
+    };
+    
+    return (
+      <div className="min-h-screen bg-[#faf6f0] flex flex-col items-center justify-center p-4">
+        <div ref={stripRef} className="bg-white p-4 shadow-xl rounded-sm">
+          <div className="space-y-2">
             {photos.map((photo, idx) => (
-              <img
-                key={idx}
-                src={photo}
-                alt={`Photo ${idx + 1}`}
-                className="w-64 rounded-sm shadow-md"
-              />
+              <div key={idx} className={`${frameStyles[selectedFrame as keyof typeof frameStyles]} overflow-hidden rounded-sm`}>
+                <img src={photo} alt={`Photo ${idx + 1}`} className="w-40 h-32 object-cover" />
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Download Buttons */}
-        <div className="flex gap-4 mt-8">
-          <button
-            onClick={downloadPNG}
-            className="px-6 py-2 bg-[#3d2b1a] text-[#faf6f0] rounded-full hover:bg-[#5a3d2a] transition"
-          >
-            Download PNG
-          </button>
-          <button
-            onClick={downloadPDF}
-            className="px-6 py-2 bg-[#3d2b1a] text-[#faf6f0] rounded-full hover:bg-[#5a3d2a] transition"
-          >
-            Download PDF
-          </button>
-          <button
-            onClick={reset}
-            className="px-6 py-2 border border-[#3d2b1a] text-[#3d2b1a] rounded-full hover:bg-[#3d2b1a]/10 transition"
-          >
-            Take New Photos
-          </button>
+        <div className="flex gap-3 mt-6">
+          <button onClick={downloadPNG} className="px-5 py-2 bg-[#3d2b1a] text-[#faf6f0] rounded-full text-sm hover:bg-[#5a3d2a] transition">Download PNG</button>
+          <button onClick={downloadPDF} className="px-5 py-2 bg-[#3d2b1a] text-[#faf6f0] rounded-full text-sm hover:bg-[#5a3d2a] transition">Download PDF</button>
+          <button onClick={reset} className="px-5 py-2 border border-[#3d2b1a] text-[#3d2b1a] rounded-full text-sm hover:bg-[#3d2b1a]/10 transition">Take New Photos</button>
         </div>
       </div>
     );
