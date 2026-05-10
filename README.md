@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PHOTOBOOTH STUDIO
 
-## Getting Started
+*A cinematic vintage photobooth experience — right in your browser.*
 
-First, run the development server:
+---
+
+## ✨ About
+
+Photobooth Studio is a minimal, privacy-focused web app that lets you create beautiful vintage photo strips using your camera or uploaded photos. No login. No storage. Just memories.
+
+---
+
+## 🎭 Features
+
+- 📷 Take 4 photos with camera
+- 📁 Upload 4 photos from your device
+- 🖼️ 4 frame styles (Classic, Vintage, Minimal, Film)
+- 🎨 Filters (NORMAL, B&W, VINTAGE)
+- 🎞️ Vertical photo strip generation
+- 📥 Download as PNG or PDF
+- 🔊 Real photobooth sounds
+- 🔒 Privacy first — no backend, no storage
+
+---
+
+## 🎬 How It Works
+
+1. Click **ENTER** on the landing page
+2. Choose your frame style and filter
+3. Take photos with camera or upload from device
+4. Generate your vertical photo strip
+5. Download as PNG or PDF
+
+---
+
+## 🛡️ Privacy
+
+> Your photos never leave your device. No backend. No database. No tracking. Everything runs locally in your browser.
+
+---
+
+## 🚀 Tech Stack
+
+- Next.js 15 + TypeScript
+- Tailwind CSS
+- Framer Motion
+- React Webcam
+- html2canvas + jsPDF
+
+---
+
+## 📦 Installation
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/photobooth-studio.git
+cd photobooth-studio
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Open http://localhost:3000
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+🎨 Color Palette
+Color	Hex
+Cream Paper	#f5efe8
+Dark Espresso	#2c1a0e
+Vintage Beige	#f0e8dc
+Warm Brown	#8B7355
+📄 License
+MIT
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+<div align="center"> <i>build with love, amo</i> </div> ```
